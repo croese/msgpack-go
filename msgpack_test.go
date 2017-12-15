@@ -36,6 +36,15 @@ func TestMarshal(t *testing.T) {
 		{input: -1, expected: []byte{0xff}},
 		{input: -32, expected: []byte{0xe0}},
 		{input: -33, expected: []byte{0xd0, 0xdf}},
+		{input: int8(-34), expected: []byte{0xd0, 0xde}},
+		{input: -127, expected: []byte{0xd0, 0x81}},
+		{input: int8(-127), expected: []byte{0xd0, 0x81}},
+		{input: -128, expected: []byte{0xd1, 0xff, 0x80}},
+		{input: int16(-129), expected: []byte{0xd1, 0xff, 0x7f}},
+		{input: -2147483647, expected: []byte{0xd2, 0x80, 0x00, 0x00, 0x01}},
+		{input: int32(-2147483646), expected: []byte{0xd2, 0x80, 0x00, 0x00, 0x02}},
+		{input: -2147483648, expected: []byte{0xd3, 0xff, 0xff, 0xff, 0xff,
+			0x80, 0x00, 0x00, 0x00}},
 	}
 
 	for _, test := range tests {
