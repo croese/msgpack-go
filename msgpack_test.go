@@ -83,6 +83,8 @@ func TestStringMarshal(t *testing.T) {
 			expected: helperLoadBytes("str16", []byte{0xda, 0x01, 0x00}, t)},
 		{input: strings.Repeat("A", maxStr16Length),
 			expected: helperLoadBytes("maxstr16", []byte{0xda, 0xff, 0xff}, t)},
+		{input: strings.Repeat("A", maxStr16Length+1),
+			expected: helperLoadBytes("str32", []byte{0xdb, 0x00, 0x01, 0x00, 0x00}, t)},
 	}
 
 	for _, test := range tests {
@@ -104,12 +106,12 @@ func checkMarshalReturns(input interface{}, b []byte, e error, t *testing.T) {
 
 func compareByteSlices(input interface{}, expected []byte, actual []byte, t *testing.T) {
 	if len(expected) != len(actual) {
-		t.Errorf("input '%v': mismatched slice lengths: expected=%d, actual=%d [% x]",
+		t.Fatalf("input '%v': mismatched slice lengths: expected=%d, actual=%d [% x]",
 			input, len(expected), len(actual), actual)
 	}
 	for i, b := range expected {
 		if actual[i] != b {
-			t.Errorf("input '%v': mismatched byte at index %d. expected=%x, actual=%x",
+			t.Fatalf("input '%v': mismatched byte at index %d. expected=%x, actual=%x",
 				input, i, b, actual[i])
 		}
 	}

@@ -11,6 +11,7 @@ const (
 	maxFixstrLength   = 31
 	maxStr8Length     = 1<<8 - 1
 	maxStr16Length    = 1<<16 - 1
+	maxStr32Length    = 1<<32 - 1
 )
 
 func Marshal(i interface{}) ([]byte, error) {
@@ -48,11 +49,13 @@ func pack(v reflect.Value, buf *bytes.Buffer) error {
 	case reflect.Float32: // TODO: treat integral floats as integers
 		fval := v.Float()
 		floatBits := math.Float32bits(float32(fval))
-		writeUint32(0xca, floatBits, buf)
+		buf.WriteByte(0xca)
+		writeUint32(floatBits, buf)
 	case reflect.Float64:
 		fval := v.Float()
 		floatBits := math.Float64bits(fval)
-		writeUint64(0xcb, floatBits, buf)
+		buf.WriteByte(0xcb)
+		writeUint64(floatBits, buf)
 	case reflect.String:
 		str := v.String()
 		length := len(str)
@@ -72,21 +75,34 @@ func writeStringHeader(length int, buf *bytes.Buffer) {
 	} else if length <= maxStr16Length {
 		buf.WriteByte(0xda)
 		i16 := int16(length)
-		buf.WriteByte(byte(i16 >> 8))
-		buf.WriteByte(byte(i16 & 0x00FF))
+		writeInt16(i16, buf)
+	} else if length <= maxStr32Length {
+		buf.WriteByte(0xdb)
+		i32 := int32(length)
+		writeInt32(i32, buf)
 	}
 }
 
-func writeUint32(prefix byte, uval uint32, buf *bytes.Buffer) {
-	buf.WriteByte(prefix)
+func writeInt16(ival int16, buf *bytes.Buffer) {
+	buf.WriteByte(byte(ival >> 8))
+	buf.WriteByte(byte(ival & 0x00FF))
+}
+
+func writeInt32(ival int32, buf *bytes.Buffer) {
+	buf.WriteByte(byte(ival >> 24))
+	buf.WriteByte(byte((ival & 0x00FF0000) >> 16))
+	buf.WriteByte(byte((ival & 0x0000FF00) >> 8))
+	buf.WriteByte(byte((ival & 0x000000FF)))
+}
+
+func writeUint32(uval uint32, buf *bytes.Buffer) {
 	buf.WriteByte(byte(uval >> 24))
 	buf.WriteByte(byte((uval & 0x00FF0000) >> 16))
 	buf.WriteByte(byte((uval & 0x0000FF00) >> 8))
 	buf.WriteByte(byte((uval & 0x000000FF)))
 }
 
-func writeUint64(prefix byte, uval uint64, buf *bytes.Buffer) {
-	buf.WriteByte(prefix)
+func writeUint64(uval uint64, buf *bytes.Buffer) {
 	buf.WriteByte(byte(uval >> 56))
 	buf.WriteByte(byte((uval & 0x00FF000000000000) >> 48))
 	buf.WriteByte(byte((uval & 0x0000FF0000000000) >> 40))
@@ -110,9 +126,11 @@ func writeUint(uval uint64, buf *bytes.Buffer) {
 		buf.WriteByte(byte(u16 & 0x00FF))
 	} else if uval <= math.MaxUint32 {
 		u32 := uint32(uval)
-		writeUint32(0xce, u32, buf)
+		buf.WriteByte(0xce)
+		writeUint32(u32, buf)
 	} else {
-		writeUint64(0xcf, uval, buf)
+		buf.WriteByte(0xcf)
+		writeUint64(uval, buf)
 	}
 }
 
