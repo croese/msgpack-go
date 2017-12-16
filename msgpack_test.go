@@ -1,7 +1,11 @@
 package msgpack
 
 import (
+	"bytes"
+	"io/ioutil"
 	"math"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,21 +64,66 @@ func TestMarshal(t *testing.T) {
 	}
 }
 
+func TestStringMarshal(t *testing.T) {
+	tests := []struct {
+		input    interface{}
+		expected []byte
+	}{
+		{input: "", expected: []byte{0xa0}},
+		{input: "X", expected: []byte{0xa1, 0x58}},
+		{input: strings.Repeat("X", 31), expected: []byte{0xbf, 0x58, 0x58, 0x58, 0x58,
+			0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+			0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+			0x58}},
+		{input: strings.Repeat("A", maxFixstrLength+1),
+			expected: helperLoadBytes("str8", []byte{0xd9, 0x20}, t)},
+		{input: strings.Repeat("A", maxStr8Length),
+			expected: helperLoadBytes("maxstr8", []byte{0xd9, 0xff}, t)},
+		{input: strings.Repeat("A", maxStr8Length+1),
+			expected: helperLoadBytes("str16", []byte{0xda, 0x01, 0x00}, t)},
+		{input: strings.Repeat("A", maxStr16Length),
+			expected: helperLoadBytes("maxstr16", []byte{0xda, 0xff, 0xff}, t)},
+	}
+
+	for _, test := range tests {
+		b, e := Marshal(test.input)
+		checkMarshalReturns(test.input, b, e, t)
+		compareByteSlices(test.input, test.expected, b, t)
+	}
+}
+
 func checkMarshalReturns(input interface{}, b []byte, e error, t *testing.T) {
 	if e != nil {
-		t.Fatalf("input %v: error should be nil", input)
+		t.Fatalf("input '%v': error should be nil", input)
 	}
 
 	if b == nil {
-		t.Fatalf("input %v: returned bytes should not be nil", input)
+		t.Fatalf("input '%v': returned bytes should not be nil", input)
 	}
 }
 
 func compareByteSlices(input interface{}, expected []byte, actual []byte, t *testing.T) {
+	if len(expected) != len(actual) {
+		t.Errorf("input '%v': mismatched slice lengths: expected=%d, actual=%d [% x]",
+			input, len(expected), len(actual), actual)
+	}
 	for i, b := range expected {
 		if actual[i] != b {
-			t.Errorf("input %v: mismatched byte at index %d. expected=%x, actual=%x",
+			t.Errorf("input '%v': mismatched byte at index %d. expected=%x, actual=%x",
 				input, i, b, actual[i])
 		}
 	}
+}
+
+func helperLoadBytes(name string, prefix []byte, t *testing.T) []byte {
+	path := filepath.Join("testdata", name+".golden")
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	buf.Write(prefix)
+	buf.Write(bytes.TrimSpace(b))
+	return buf.Bytes()
 }

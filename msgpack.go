@@ -6,7 +6,12 @@ import (
 	"reflect"
 )
 
-const maxPositiveFixnum = 0x7f
+const (
+	maxPositiveFixnum = 0x7f
+	maxFixstrLength   = 31
+	maxStr8Length     = 1<<8 - 1
+	maxStr16Length    = 1<<16 - 1
+)
 
 func Marshal(i interface{}) ([]byte, error) {
 	var buf bytes.Buffer
@@ -48,9 +53,28 @@ func pack(v reflect.Value, buf *bytes.Buffer) error {
 		fval := v.Float()
 		floatBits := math.Float64bits(fval)
 		writeUint64(0xcb, floatBits, buf)
+	case reflect.String:
+		str := v.String()
+		length := len(str)
+		writeStringHeader(length, buf)
+		buf.WriteString(str)
 	}
 
 	return nil
+}
+
+func writeStringHeader(length int, buf *bytes.Buffer) {
+	if length <= maxFixstrLength {
+		buf.WriteByte(byte(160 + length)) // 160 == 0xA0 == 1010 0000
+	} else if length <= maxStr8Length {
+		buf.WriteByte(0xd9)
+		buf.WriteByte(byte(length))
+	} else if length <= maxStr16Length {
+		buf.WriteByte(0xda)
+		i16 := int16(length)
+		buf.WriteByte(byte(i16 >> 8))
+		buf.WriteByte(byte(i16 & 0x00FF))
+	}
 }
 
 func writeUint32(prefix byte, uval uint32, buf *bytes.Buffer) {
@@ -87,8 +111,9 @@ func writeUint(uval uint64, buf *bytes.Buffer) {
 	} else if uval <= math.MaxUint32 {
 		u32 := uint32(uval)
 		writeUint32(0xce, u32, buf)
+	} else {
+		writeUint64(0xcf, uval, buf)
 	}
-	writeUint64(0xcf, uval, buf)
 }
 
 func writeInt(ival int64, buf *bytes.Buffer) {
@@ -110,16 +135,17 @@ func writeInt(ival int64, buf *bytes.Buffer) {
 		buf.WriteByte(byte((i32 & 0x00FF0000) >> 16))
 		buf.WriteByte(byte((i32 & 0x0000FF00) >> 8))
 		buf.WriteByte(byte((i32 & 0x000000FF)))
+	} else {
+		buf.WriteByte(0xd3)
+		buf.WriteByte(byte(ival >> 56))
+		buf.WriteByte(byte((ival & 0x00FF000000000000) >> 48))
+		buf.WriteByte(byte((ival & 0x0000FF0000000000) >> 40))
+		buf.WriteByte(byte((ival & 0x000000FF00000000) >> 32))
+		buf.WriteByte(byte((ival & 0x00000000FF000000) >> 24))
+		buf.WriteByte(byte((ival & 0x0000000000FF0000) >> 16))
+		buf.WriteByte(byte((ival & 0x000000000000FF00) >> 8))
+		buf.WriteByte(byte((ival & 0x00000000000000FF)))
 	}
-	buf.WriteByte(0xd3)
-	buf.WriteByte(byte(ival >> 56))
-	buf.WriteByte(byte((ival & 0x00FF000000000000) >> 48))
-	buf.WriteByte(byte((ival & 0x0000FF0000000000) >> 40))
-	buf.WriteByte(byte((ival & 0x000000FF00000000) >> 32))
-	buf.WriteByte(byte((ival & 0x00000000FF000000) >> 24))
-	buf.WriteByte(byte((ival & 0x0000000000FF0000) >> 16))
-	buf.WriteByte(byte((ival & 0x000000000000FF00) >> 8))
-	buf.WriteByte(byte((ival & 0x00000000000000FF)))
 }
 
 func isFixnum(n int64) bool {
