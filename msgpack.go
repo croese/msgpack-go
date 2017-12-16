@@ -10,8 +10,11 @@ const (
 	maxPositiveFixnum = 0x7f
 	maxFixstrLength   = 31
 	maxStr8Length     = 1<<8 - 1
+	maxBin8Length     = 1<<8 - 1
 	maxStr16Length    = 1<<16 - 1
+	maxBin16Length    = 1<<16 - 1
 	maxStr32Length    = 1<<32 - 1
+	maxBin32Length    = 1<<32 - 1
 )
 
 func Marshal(i interface{}) ([]byte, error) {
@@ -61,9 +64,34 @@ func pack(v reflect.Value, buf *bytes.Buffer) error {
 		length := len(str)
 		writeStringHeader(length, buf)
 		buf.WriteString(str)
+	case reflect.Slice:
+		if isByteSlice(v) {
+			writeBinHeader(v.Len(), buf)
+			buf.Write(v.Bytes())
+		} // else treat as an array
 	}
 
 	return nil
+}
+
+func writeBinHeader(length int, buf *bytes.Buffer) {
+	if length <= maxBin8Length {
+		buf.WriteByte(0xc4)
+		buf.WriteByte(byte(length))
+	} else if length <= maxBin16Length {
+		buf.WriteByte(0xc5)
+		i16 := int16(length)
+		writeInt16(i16, buf)
+	} else if length <= maxBin32Length {
+		buf.WriteByte(0xc6)
+		i32 := int32(length)
+		writeInt32(i32, buf)
+	}
+	// TODO: error?
+}
+
+func isByteSlice(v reflect.Value) bool {
+	return v.Type() == reflect.SliceOf(reflect.TypeOf(byte(0)))
 }
 
 func writeStringHeader(length int, buf *bytes.Buffer) {
@@ -81,6 +109,7 @@ func writeStringHeader(length int, buf *bytes.Buffer) {
 		i32 := int32(length)
 		writeInt32(i32, buf)
 	}
+	// TODO: error?
 }
 
 func writeInt16(ival int16, buf *bytes.Buffer) {

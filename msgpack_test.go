@@ -94,6 +94,30 @@ func TestStringMarshal(t *testing.T) {
 	}
 }
 
+func TestBinaryMarshal(t *testing.T) {
+	tests := []struct {
+		input    interface{}
+		expected []byte
+	}{
+		{input: []byte{}, expected: []byte{0xc4, 0x00}},
+		{input: []byte{0x41}, expected: []byte{0xc4, 0x01, 0x41}},
+		{input: bytes.Repeat([]byte{0x41}, maxBin8Length),
+			expected: helperLoadBytes("maxstr8", []byte{0xc4, 0xff}, t)},
+		{input: bytes.Repeat([]byte{0x41}, maxBin8Length+1),
+			expected: helperLoadBytes("str16", []byte{0xc5, 0x01, 0x00}, t)},
+		{input: bytes.Repeat([]byte{0x41}, maxBin16Length),
+			expected: helperLoadBytes("maxstr16", []byte{0xc5, 0xff, 0xff}, t)},
+		{input: bytes.Repeat([]byte{0x41}, maxBin16Length+1),
+			expected: helperLoadBytes("str32", []byte{0xc6, 0x00, 0x01, 0x00, 0x00}, t)},
+	}
+
+	for _, test := range tests {
+		b, e := Marshal(test.input)
+		checkMarshalReturns(test.input, b, e, t)
+		compareByteSlices(test.input, test.expected, b, t)
+	}
+}
+
 func checkMarshalReturns(input interface{}, b []byte, e error, t *testing.T) {
 	if e != nil {
 		t.Fatalf("input '%v': error should be nil", input)
