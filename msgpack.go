@@ -40,9 +40,37 @@ func pack(v reflect.Value, buf *bytes.Buffer) error {
 		reflect.Uint8, reflect.Uint16, reflect.Uint32,
 		reflect.Uint64:
 		writeUint(v.Uint(), buf)
+	case reflect.Float32: // TODO: treat integral floats as integers
+		fval := v.Float()
+		floatBits := math.Float32bits(float32(fval))
+		writeUint32(0xca, floatBits, buf)
+	case reflect.Float64:
+		fval := v.Float()
+		floatBits := math.Float64bits(fval)
+		writeUint64(0xcb, floatBits, buf)
 	}
 
 	return nil
+}
+
+func writeUint32(prefix byte, uval uint32, buf *bytes.Buffer) {
+	buf.WriteByte(prefix)
+	buf.WriteByte(byte(uval >> 24))
+	buf.WriteByte(byte((uval & 0x00FF0000) >> 16))
+	buf.WriteByte(byte((uval & 0x0000FF00) >> 8))
+	buf.WriteByte(byte((uval & 0x000000FF)))
+}
+
+func writeUint64(prefix byte, uval uint64, buf *bytes.Buffer) {
+	buf.WriteByte(prefix)
+	buf.WriteByte(byte(uval >> 56))
+	buf.WriteByte(byte((uval & 0x00FF000000000000) >> 48))
+	buf.WriteByte(byte((uval & 0x0000FF0000000000) >> 40))
+	buf.WriteByte(byte((uval & 0x000000FF00000000) >> 32))
+	buf.WriteByte(byte((uval & 0x00000000FF000000) >> 24))
+	buf.WriteByte(byte((uval & 0x0000000000FF0000) >> 16))
+	buf.WriteByte(byte((uval & 0x000000000000FF00) >> 8))
+	buf.WriteByte(byte((uval & 0x00000000000000FF)))
 }
 
 func writeUint(uval uint64, buf *bytes.Buffer) {
@@ -58,21 +86,9 @@ func writeUint(uval uint64, buf *bytes.Buffer) {
 		buf.WriteByte(byte(u16 & 0x00FF))
 	} else if uval <= math.MaxUint32 {
 		u32 := uint32(uval)
-		buf.WriteByte(0xce)
-		buf.WriteByte(byte(u32 >> 24))
-		buf.WriteByte(byte((u32 & 0x00FF0000) >> 16))
-		buf.WriteByte(byte((u32 & 0x0000FF00) >> 8))
-		buf.WriteByte(byte((u32 & 0x000000FF)))
+		writeUint32(0xce, u32, buf)
 	}
-	buf.WriteByte(0xcf)
-	buf.WriteByte(byte(uval >> 56))
-	buf.WriteByte(byte((uval & 0x00FF000000000000) >> 48))
-	buf.WriteByte(byte((uval & 0x0000FF0000000000) >> 40))
-	buf.WriteByte(byte((uval & 0x000000FF00000000) >> 32))
-	buf.WriteByte(byte((uval & 0x00000000FF000000) >> 24))
-	buf.WriteByte(byte((uval & 0x0000000000FF0000) >> 16))
-	buf.WriteByte(byte((uval & 0x000000000000FF00) >> 8))
-	buf.WriteByte(byte((uval & 0x00000000000000FF)))
+	writeUint64(0xcf, uval, buf)
 }
 
 func writeInt(ival int64, buf *bytes.Buffer) {
